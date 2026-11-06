@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, shallowRef } from 'vue'
 import { storeToRefs } from 'pinia'
 
 import LeagueFilters from '@/components/LeagueFilters.vue'
 import LeagueList from '@/components/LeagueList.vue'
+import { useBadgesStore } from '@/stores/badges'
 import { useLeaguesStore } from '@/stores/leagues'
 
 const leaguesStore = useLeaguesStore()
@@ -26,6 +27,21 @@ const countLabel = computed(() => {
   const noun = total === 1 ? 'league' : 'leagues'
   return shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`
 })
+
+const badgesStore = useBadgesStore()
+const { badgesByLeagueId } = storeToRefs(badgesStore)
+
+// One league open at a time, like an accordion.
+const openLeagueId = shallowRef<string | null>(null)
+
+function toggleLeague(leagueId: string) {
+  if (openLeagueId.value === leagueId) {
+    openLeagueId.value = null
+    return
+  }
+  openLeagueId.value = leagueId
+  badgesStore.loadBadge(leagueId) // no request if this league's badge is already known
+}
 </script>
 
 <template>
@@ -41,6 +57,12 @@ const countLabel = computed(() => {
         {{ countLabel }}
       </p>
     </div>
-    <LeagueList :leagues="filteredLeagues" />
+    <LeagueList
+      :leagues="filteredLeagues"
+      :open-league-id="openLeagueId"
+      :badges-by-league-id="badgesByLeagueId"
+      @toggle="toggleLeague"
+      @retry="badgesStore.loadBadge"
+    />
   </div>
 </template>
