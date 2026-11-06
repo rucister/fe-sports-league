@@ -10,3 +10,6 @@ export interface SeasonBadge {
   url: string
   season: string
 }
+
+/** Where a one-off request stands. `idle` means it hasn't been made yet. */
+export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
