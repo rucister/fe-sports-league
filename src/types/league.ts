@@ -13,3 +13,13 @@ export interface SeasonBadge {
 
 /** Where a one-off request stands. `idle` means it hasn't been made yet. */
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+/**
+ * Where one league's badge request stands. `empty` means the league has no season with a badge.
+ * A league whose badge was never requested has no state at all.
+ */
+export type BadgeState =
+  | { status: 'loading' }
+  | ({ status: 'ready' } & SeasonBadge)
+  | { status: 'empty' }
+  | { status: 'error' }
