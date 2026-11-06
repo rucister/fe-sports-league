@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+/* Design tokens, taken from the Tokens board of the design canvas. */
+@theme {
+  --color-brand: #e31726; /* accent, focus ring, open card border */
+  --color-brand-hover: #c4121f; /* primary button hover */
+  --color-brand-ink: #b5121e; /* links, red text */
+  --color-brand-ink-hover: #8e0e18; /* link hover */
+  --color-ink: #141416; /* main text */
+  --color-ink-2: #3a3a40; /* chips, counts */
+  --color-muted: #6b6b73; /* hints, labels */
+  --color-line: #e6e6ea; /* borders, dividers */
+  --color-line-strong: #c9c9d0; /* input and select hover border */
+  --color-line-dashed: #d4d4da; /* empty-state dashed border */
+  --color-subtle: #f1f1f3; /* chip background, ghost button hover */
+  --color-ground: #f6f6f7; /* page background */
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Archivo', 'Inter', sans-serif;
+
+  --radius-card: 12px;
+  --radius-control: 10px;
+
+  --shadow-card: 0 8px 24px rgb(20 20 22 / 0.08); /* open card */
+}
+
+@layer base {
+  body {
+    @apply bg-ground font-sans text-ink antialiased;
+  }
+}
