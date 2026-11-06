@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The workflow only reads the repository.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # `npm run lint` auto-fixes, which would hide problems in CI, so run the linters without it.
+      - name: Lint
+        run: |
+          npx oxlint .
+          npx eslint .
+
+      - name: Check formatting
+        run: npx prettier --check .
+
+      - name: Unit and integration tests
+        run: npm run test:unit -- --run
+
+      - name: Type-check and build
+        run: npm run build
