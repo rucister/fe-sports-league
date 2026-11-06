@@ -13,11 +13,14 @@ import seasonsNoBadge from './fixtures/seasons-no-badge.json'
 // Integration tests: real components and stores, only the network is faked.
 const fetchMock = vi.fn<typeof fetch>()
 
-/** Answers the leagues request, and each league's seasons request by league id (an Error fails it). */
+/** Answers the leagues request, and each league's seasons request by league id. An Error body fails it. */
 function serveApi(leaguesBody: unknown, seasonsByLeagueId: Record<string, unknown> = {}) {
   fetchMock.mockImplementation(async (input) => {
     const url = new URL(String(input))
-    if (url.pathname.endsWith('/all_leagues.php')) return new Response(JSON.stringify(leaguesBody))
+    if (url.pathname.endsWith('/all_leagues.php')) {
+      if (leaguesBody instanceof Error) throw leaguesBody
+      return new Response(JSON.stringify(leaguesBody))
+    }
     if (url.pathname.endsWith('/search_all_seasons.php')) {
       const body = seasonsByLeagueId[url.searchParams.get('id') ?? '']
       if (body instanceof Error) throw body
@@ -29,11 +32,16 @@ function serveApi(leaguesBody: unknown, seasonsByLeagueId: Record<string, unknow
 
 const serveLeagues = (body: unknown) => serveApi(body)
 
-async function mountApp() {
-  const wrapper = mount(App, {
+function mountAppNow() {
+  return mount(App, {
     global: { plugins: [createPinia()] },
     attachTo: document.body, // so focus can be checked
   })
+}
+
+/** Mounts the app and waits for the leagues request to settle. */
+async function mountApp() {
+  const wrapper = mountAppNow()
   await flushPromises()
   return wrapper
 }
@@ -48,6 +56,12 @@ const badgeRequests = () =>
 function cardButton(wrapper: Wrapper, leagueName: string) {
   const button = wrapper.findAll('h2 button').find((b) => b.text().includes(leagueName))
   if (!button) throw new Error(`No card for ${leagueName}`)
+  return button
+}
+
+function buttonByText(wrapper: Wrapper, text: string) {
+  const button = wrapper.findAll('button').find((b) => b.text() === text)
+  if (!button) throw new Error(`No "${text}" button`)
   return button
 }
 
@@ -239,5 +253,75 @@ describe('season badge', () => {
 
     expect(wrapper.find('img').exists()).toBe(true)
     expect(badgeRequests()).toBe(1)
+  })
+})
+
+describe('list states', () => {
+  it('shows placeholder cards while the leagues load', async () => {
+    let respond!: (response: Response) => void
+    fetchMock.mockReturnValueOnce(new Promise((r) => (respond = r)))
+    const wrapper = mountAppNow()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Loading leagues')
+    expect(wrapper.find('[data-testid="league-name"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-live]').exists()).toBe(false) // no "0 leagues" count yet
+
+    respond(new Response(JSON.stringify(leagues)))
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Loading leagues')
+    expect(cardNames(wrapper)).toHaveLength(3)
+  })
+
+  it('shows an error with Retry when the leagues fail to load, and Retry loads them', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    serveLeagues(new TypeError('Failed to fetch'))
+    const wrapper = await mountApp()
+
+    const alert = wrapper.get('[role="alert"]')
+    expect(alert.text()).toContain("Couldn't load leagues")
+    expect(alert.text()).toContain('the free API limits how often it can be called')
+
+    serveLeagues(leagues)
+    await alert.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(cardNames(wrapper)).toHaveLength(3)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('says when no league matches the search, and Clear filters shows them all again', async () => {
+    serveLeagues(leagues)
+    const wrapper = await mountApp()
+
+    await wrapper.get('input').setValue('  hockey ')
+
+    expect(wrapper.text()).toContain('No leagues match “hockey”')
+    expect(countLabel(wrapper)).toBe('0 of 3 leagues')
+
+    await buttonByText(wrapper, 'Clear filters').trigger('click')
+
+    expect(wrapper.get('input').element.value).toBe('')
+    expect(cardNames(wrapper)).toHaveLength(3)
+  })
+
+  it('names the chosen sport when the search matches nothing within it', async () => {
+    serveLeagues(leaguesMultiSport)
+    const wrapper = await mountApp()
+
+    await wrapper.get('select').setValue('Basketball')
+    await wrapper.get('input').setValue('premier')
+
+    expect(wrapper.text()).toContain('No Basketball leagues match “premier”')
+  })
+
+  it('says so when the API returns no leagues at all', async () => {
+    serveLeagues({ leagues: null })
+    const wrapper = await mountApp()
+
+    expect(wrapper.text()).toContain('No leagues available')
+    expect(wrapper.find('button').exists()).toBe(false) // nothing to clear or retry
   })
 })
